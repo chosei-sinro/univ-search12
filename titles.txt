@@ -8,7 +8,7 @@ https://chosei-sinro.github.io/univ-search12/
 univcode12.csv
 
 [titles]
-高１・２用　大学コード検索(試)
+高１・２用　大学コード検索
 
 [owner]
 千葉県立長生高等学校　進路指導部(2026.10.21)
