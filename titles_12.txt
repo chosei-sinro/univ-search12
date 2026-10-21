@@ -1,0 +1,18 @@
+﻿[pagetag]
+大学コード検索12
+
+[baseurl]
+https://chosei-sinro.github.io/univ-search12/
+
+[csvfile]
+univcode12.csv
+
+[titles]
+大学コード検索12(試運転中)
+
+[owner]
+千葉県立長生高等学校　進路指導部(2026.10.21)
+
+[scripts]
+大学名・学部名・学科名・略称・コード番号を入力してください。複数語をスペースで区切るとAND検索になります。
+出力される学部・学科名は略称の場合があります。

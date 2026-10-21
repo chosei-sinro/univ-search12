@@ -1,0 +1,477 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>大学コード検索</title>
+
+<style>
+
+body{
+    font-family:"Yu Gothic","Meiryo",sans-serif;
+    max-width:1200px;
+    margin:20px auto;
+    padding:20px;
+}
+
+h1{
+    color:#003366;
+}
+
+#searchBox{
+    width:100%;
+    padding:12px;
+    font-size:18px;
+    box-sizing:border-box;
+}
+
+#status{
+    margin-top:15px;
+    margin-bottom:15px;
+    color:#666;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th{
+    background:#003366;
+    color:white;
+    text-align:left;
+    padding:10px;
+}
+
+td{
+    border-bottom:1px solid #ddd;
+    padding:8px;
+}
+
+tr:hover{
+    background:#f5f5f5;
+}
+
+.code{
+    font-family:Consolas,monospace;
+    font-weight:bold;
+    white-space:nowrap;
+}
+
+.error{
+    color:red;
+    font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1 id="pageTitle">大学コード検索</h1>
+
+<br aria-hidden="true">
+
+<h3 id="pageOwner"></h3>
+
+<div id="pageScripts"></div>
+
+<input
+    id="searchBox"
+    type="text"
+    placeholder="例：千葉 教育">
+
+<div id="status">
+データ読込中...
+</div>
+
+<table>
+<thead>
+<tr>
+<th style="width:180px;">コード番号</th>
+<th>大学・学部・学科</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
+</table>
+
+<script>
+
+const MAX_DISPLAY = 100;
+
+let baseUrl = "";
+let csvFile = "univcode.csv";
+
+let pageTag = "";
+let pageTitle = "";
+let pageOwner = "";
+let pageScripts = [];
+
+let data = [];
+
+/* -------------------- */
+/* HTMLエスケープ */
+/* -------------------- */
+
+function escapeHtml(text){
+
+    return String(text)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;");
+}
+
+/* -------------------- */
+/* titles.txt 読込 */
+/* -------------------- */
+
+async function loadTitles(){
+
+    const response = await fetch("./titles.txt");
+
+    if(!response.ok){
+        throw new Error("titles.txt読込失敗");
+    }
+
+    const text = await response.text();
+
+    const lines = text
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/)
+        .map(line => line.trim());
+
+    let mode = "";
+
+    pageScripts = [];
+
+    for(const line of lines){
+
+        if(line === ""){
+
+            if(mode === "scripts"){
+                pageScripts.push("");
+            }
+
+            continue;
+        }
+
+        if(line === "[pagetag]"){
+            mode = "pagetag";
+            continue;
+        }
+
+        if(line === "[baseurl]"){
+            mode = "baseurl";
+            continue;
+        }
+
+        if(line === "[csvfile]"){
+            mode = "csvfile";
+            continue;
+        }
+
+        if(line === "[titles]"){
+            mode = "title";
+            continue;
+        }
+
+        if(line === "[owner]"){
+            mode = "owner";
+            continue;
+        }
+
+        if(line === "[scripts]"){
+            mode = "scripts";
+            continue;
+        }
+
+        if(mode === "pagetag"){
+            pageTag = line;
+            mode = "";
+            continue;
+        }
+
+        if(mode === "baseurl"){
+
+            baseUrl = line;
+
+            if(!baseUrl.endsWith("/")){
+                baseUrl += "/";
+            }
+
+            mode = "";
+            continue;
+        }
+
+        if(mode === "csvfile"){
+            csvFile = line;
+            mode = "";
+            continue;
+        }
+
+        if(mode === "title"){
+            pageTitle = line;
+            mode = "";
+            continue;
+        }
+
+        if(mode === "owner"){
+            pageOwner = line;
+            mode = "";
+            continue;
+        }
+
+        if(mode === "scripts"){
+            pageScripts.push(line);
+        }
+    }
+
+    if(pageTag){
+        document.title = pageTag;
+    }
+
+    if(pageTitle){
+        document
+            .getElementById("pageTitle")
+            .textContent = pageTitle;
+    }
+
+    if(pageOwner){
+        document
+            .getElementById("pageOwner")
+            .textContent = pageOwner;
+    }
+
+    document
+        .getElementById("pageScripts")
+        .innerHTML =
+        pageScripts
+            .map(text =>
+                text === ""
+                ? "<p>&nbsp;</p>"
+                : `<p>${escapeHtml(text)}</p>`
+            )
+            .join("");
+}
+
+/* -------------------- */
+/* CSV解析 */
+/* -------------------- */
+
+function parseCsvLine(line){
+
+    const result = [];
+
+    let current = "";
+    let inQuotes = false;
+
+    for(let i=0;i<line.length;i++){
+
+        const c = line[i];
+
+        if(c === '"'){
+            inQuotes = !inQuotes;
+            continue;
+        }
+
+        if(c === "," && !inQuotes){
+            result.push(current);
+            current = "";
+        }
+        else{
+            current += c;
+        }
+    }
+
+    result.push(current);
+
+    return result;
+}
+
+/* -------------------- */
+/* CSV読込 */
+/* -------------------- */
+
+async function loadCSV(){
+
+    const csvUrl =
+        `${baseUrl}${csvFile}`;
+
+    console.log("CSV URL =", csvUrl);
+
+    const response =
+        await fetch(csvUrl);
+
+    if(!response.ok){
+
+        throw new Error(
+            `HTTP ${response.status} : ${csvUrl}`
+        );
+    }
+
+    let csvText =
+        await response.text();
+
+    csvText = csvText.replace(/^\uFEFF/, "");
+
+    const lines =
+        csvText
+        .trim()
+        .split(/\r?\n/);
+
+    data = [];
+
+    for(let i=1;i<lines.length;i++){
+
+        const parts =
+            parseCsvLine(lines[i]);
+
+        if(parts.length < 3){
+            continue;
+        }
+
+        const code10 = parts[0];
+        const univtxt = parts[1];
+        const univsearch = parts[2];
+
+        data.push({
+
+            code10,
+            univtxt,
+            univsearch,
+
+            searchText:
+            (
+                code10 + " " +
+                univtxt + " " +
+                univsearch
+            ).toLowerCase()
+
+        });
+    }
+
+    document
+        .getElementById("status")
+        .textContent =
+        `${data.length.toLocaleString()}件読込完了`;
+}
+
+/* -------------------- */
+/* 検索 */
+/* -------------------- */
+
+function search(){
+
+    const query =
+        document
+        .getElementById("searchBox")
+        .value
+        .trim()
+        .toLowerCase();
+
+    if(query.length === 0){
+
+        document
+            .getElementById("results")
+            .innerHTML = "";
+
+        document
+            .getElementById("status")
+            .textContent =
+            `${data.length.toLocaleString()}件登録されています`;
+
+        return;
+    }
+
+    const keywords =
+        query.split(/\s+/);
+
+    let hitCount = 0;
+    let html = "";
+
+    for(const row of data){
+
+        let matched = true;
+
+        for(const keyword of keywords){
+
+            if(!row.searchText.includes(keyword)){
+                matched = false;
+                break;
+            }
+        }
+
+        if(!matched){
+            continue;
+        }
+
+        hitCount++;
+
+        if(hitCount <= MAX_DISPLAY){
+
+            html += `
+<tr>
+<td class="code">${escapeHtml(row.code10)}</td>
+<td>${escapeHtml(row.univtxt)}</td>
+</tr>`;
+        }
+    }
+
+    document
+        .getElementById("results")
+        .innerHTML = html;
+
+    document
+        .getElementById("status")
+        .textContent =
+        `${hitCount.toLocaleString()}件ヒット（先頭${MAX_DISPLAY}件を表示）`;
+}
+
+/* -------------------- */
+/* イベント */
+/* -------------------- */
+
+document
+    .getElementById("searchBox")
+    .addEventListener(
+        "input",
+        search
+    );
+
+/* -------------------- */
+/* 起動 */
+/* -------------------- */
+
+(async () => {
+
+    try{
+
+        await loadTitles();
+
+        if(!baseUrl){
+
+            throw new Error(
+                "[baseurl] が未設定です"
+            );
+        }
+
+        await loadCSV();
+
+    }
+    catch(error){
+
+        console.error(error);
+
+        document
+            .getElementById("status")
+            .innerHTML =
+            `<span class="error">${escapeHtml(error.message)}</span>`;
+    }
+
+})();
+
+</script>
+
+</body>
+</html>
