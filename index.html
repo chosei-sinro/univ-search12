@@ -128,7 +128,7 @@ function escapeHtml(text){
 
 async function loadTitles(){
 
-    const response = await fetch("./titles.txt");
+    const response = await fetch("titles.txt");
 
     if(!response.ok){
         throw new Error("titles.txt読込失敗");
@@ -294,6 +294,7 @@ function parseCsvLine(line){
 /* -------------------- */
 
 async function loadCSV(){
+    const startTime = performance.now();
 
     const csvUrl =
         `${baseUrl}${csvFile}`;
@@ -351,10 +352,14 @@ async function loadCSV(){
         });
     }
 
+    const elapsed =
+     ((performance.now() - startTime) / 1000)
+         .toFixed(2);
+
     document
         .getElementById("status")
         .textContent =
-        `${data.length.toLocaleString()}件読込完了`;
+        `${data.length.toLocaleString()}件読込完了 (${elapsed}秒)`;
 }
 
 /* -------------------- */
